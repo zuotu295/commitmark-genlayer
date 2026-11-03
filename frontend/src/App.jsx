@@ -17,13 +17,6 @@ import {
   waitFinalized,
 } from './genlayer.js'
 import { STRINGS, badgeLabelFor } from './i18n.js'
-import {
-  installFirstClickAutoEnable,
-  isSoundOn,
-  playChime,
-  setSoundOn,
-  subscribe,
-} from './sound.js'
 
 const REPO_URL = (repo) => `https://github.com/${repo}`
 
@@ -65,7 +58,6 @@ function validRepo(v) {
 export default function App() {
   const [lang, setLang] = useState('en')
   const t = STRINGS[lang]
-  const [sound, setSound] = useState(isSoundOn())
   const [splash, setSplash] = useState(true)
   const [splashGone, setSplashGone] = useState(false)
   const [walletAddr, setWalletAddr] = useState('')
@@ -131,13 +123,10 @@ export default function App() {
 
   // Splash: fade out on a timer, or immediately on click.
   useEffect(() => {
-    installFirstClickAutoEnable()
-    const unsub = subscribe((on) => setSound(on))
     const ms = reducedMotion ? 250 : 1500
     const timer = setTimeout(() => setSplash(false), ms)
     const gone = setTimeout(() => setSplashGone(true), ms + 750)
     return () => {
-      unsub()
       clearTimeout(timer)
       clearTimeout(gone)
     }
@@ -257,7 +246,6 @@ export default function App() {
       await waitFinalized(hash, (name) =>
         setClaimTx((prev) => (prev ? { ...prev, status: name } : prev)),
       )
-      playChime()
       const count = await fetchClaimCount()
       const record = await fetchClaim(count - 1)
       setCreatedClaim(record)
@@ -284,7 +272,6 @@ export default function App() {
       await waitFinalized(hash, (name) =>
         setVerifyTx((prev) => (prev ? { ...prev, status: name } : prev)),
       )
-      playChime()
       const record = await fetchClaim(claimId)
       setClaims((prev) => prev.map((c) => (c.id === claimId ? record : c)))
       if (profile && record.github_username.toLowerCase() === profile.username.toLowerCase()) {
@@ -309,10 +296,6 @@ export default function App() {
     } catch (e) {
       setWalletError(errText(friendlyError(e)))
     }
-  }
-
-  const toggleSound = () => {
-    setSoundOn(!sound)
   }
 
   return (
@@ -359,14 +342,6 @@ export default function App() {
               中文
             </button>
           </div>
-          <button
-            className="icon-btn"
-            data-audio-control="true"
-            onClick={toggleSound}
-            aria-label={sound ? t.soundOn : t.soundOff}
-          >
-            {sound ? '🔊' : '🔇'}
-          </button>
           {walletAddr ? (
             <span className="wallet-pill" title={walletAddr}>
               {t.walletConnected} · {shortAddr(walletAddr)}
