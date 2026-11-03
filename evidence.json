@@ -1,0 +1,83 @@
+{
+  "status": "partial",
+  "network": "Stable Studionet",
+  "chainId": 61999,
+  "rpcUrl": "https://studio.genlayer.com/api",
+  "contractAddress": "0x32D95f9BAe69488aB5793eaA985305218F3761A7",
+  "contractFile": "contracts/commitmark.py",
+  "contractSha256": "fadde815c3a803d750d462814d14ef12406a1010484c4f51ea45a034b81dea19",
+  "explorer": "https://explorer-studio.genlayer.com/address/0x32D95f9BAe69488aB5793eaA985305218F3761A7",
+  "deployTxHash": "0x98367ba21d128cd806455c77dcb7bae73582687b87d5b918db862a6a843cf245",
+  "deployReceipt": "FINALIZED/SUCCESS",
+  "flowAccount": "0x9AC2cF486a573e53F54aF322D410Ba6430C70bb9",
+  "claimCount": 2,
+  "claims": {
+    "trueClaim": {
+      "id": 0,
+      "createTxHash": "0x21d0bf6275c079978b045d4abd186b1c551b1f625452609f9fee1a4f94df4963",
+      "createReceipt": "FINALIZED/SUCCESS",
+      "settleTxHash": "0x7ad820b252d376d7339c113a91577b1f1d835afbb878dda2f1d828d236d794f1",
+      "settleReceipt": "FINALIZED/SUCCESS",
+      "claim": {
+        "id": 0,
+        "github_username": "torvalds",
+        "repo_full_name": "torvalds/linux",
+        "note": "milestone demo verified",
+        "claimer": "0x9AC2cF486a573e53F54aF322D410Ba6430C70bb9",
+        "status": "verified",
+        "source_url": "https://api.github.com/repos/torvalds/linux/commits?author=torvalds&per_page=1"
+      }
+    },
+    "falseClaim": {
+      "id": 1,
+      "createTxHash": "0x33b1d1f6339ce4cc74b16414a70a9e9a5e9a553a661cd7e92a7fc63b5fe5e226",
+      "createReceipt": "FINALIZED/SUCCESS",
+      "settleTxHash": "0x4de103f0f18d0abe0ce71a3edf56f275ee28a12a853038f3c65cd0fdae7ab8bc",
+      "settleReceipt": "FINALIZED/ERROR (agreed fail-closed, no state change)",
+      "verifyAttempts": [
+        {
+          "txHash": "0x4de103f0f18d0abe0ce71a3edf56f275ee28a12a853038f3c65cd0fdae7ab8bc",
+          "receipt": "FINALIZED/ERROR",
+          "note": "First verify attempt: validators agreed on error, claim stayed pending."
+        },
+        {
+          "txHash": "0x87c4e57ea23237937a3e5dccc9c9445ac7b8ec5fcea70ead78f4978346784921",
+          "receipt": "FINALIZED/ERROR",
+          "note": "Single bounded retry after diagnosis: same agreed fail-closed outcome, claim still pending. No further attempts made."
+        }
+      ],
+      "claim": {
+        "id": 1,
+        "github_username": "definitely-not-a-contributor-xyz",
+        "repo_full_name": "torvalds/linux",
+        "note": "milestone demo refuted",
+        "claimer": "0x9AC2cF486a573e53F54aF322D410Ba6430C70bb9",
+        "status": "pending",
+        "source_url": "https://api.github.com/repos/torvalds/linux/commits?author=definitely-not-a-contributor-xyz&per_page=1"
+      }
+    }
+  },
+  "profiles": {
+    "torvalds": {
+      "username": "torvalds",
+      "count": 1,
+      "score": 1,
+      "badges": [
+        "Contributor"
+      ],
+      "repos": [
+        "torvalds/linux"
+      ]
+    },
+    "definitely-not-a-contributor-xyz": {
+      "username": "definitely-not-a-contributor-xyz",
+      "count": 0,
+      "score": 0,
+      "badges": [],
+      "repos": []
+    }
+  },
+  "scope": "Demo loop, PARTIAL: the verified half completed on-chain; the refuted half did not settle (see diagnosis). All writes used ephemeral in-memory script accounts on gasless Studionet; no adoption claim is made and no real user data is involved. Claims attest public contribution facts only and do not prove account ownership.",
+  "diagnosis": "The refuted demo case (username with no commits in torvalds/linux) cannot settle right now because GitHub's commits API returns HTTP 500 for author queries with no matching commits, instead of HTTP 200 with an empty array. The contract maps any non-200/non-404 status to a fail-closed UserError, and validators agreed on that error twice (3/5 agree each time), so both verify transactions finalized as ERROR with no state change and the claim correctly stayed pending. This is the contract behaving as designed, not a contract defect: the refuted outcome for empty arrays and for 404s is covered by the mocked test suite. A refuted on-chain demo remains achievable via the 404 path (a nonexistent repository) if the demo inputs are amended.",
+  "checkedAt": "2026-11-03T12:26:00.245Z"
+}
