@@ -56,11 +56,29 @@ async function checkTx(label, hash) {
   }
 }
 
+async function checkTxFinalized(label, hash) {
+  try {
+    const tx = await client.getTransaction({ hash });
+    const receipts = tx.consensus_data?.leader_receipt;
+    const list = Array.isArray(receipts) ? receipts : receipts ? [receipts] : [];
+    const leader = list.find((r) => r.mode === "leader") ?? list[0];
+    const result = leader?.execution_result;
+    const votes = Object.values(tx.consensus_data?.votes ?? {}).map((v) => String(v).toLowerCase());
+    const agree = votes.filter((v) => v === "agree").length;
+    const ok = tx.statusName === "FINALIZED";
+    check(label, ok, `${tx.statusName}/${result} agree ${agree}/${votes.length}`);
+  } catch (e) {
+    check(label, false, `error: ${String(e).slice(0, 120)}`);
+  }
+}
+
 await checkTx("deploy", evidence.deployTxHash);
 await checkTx("create true claim", evidence.claims.trueClaim.createTxHash);
 await checkTx("settle true claim", evidence.claims.trueClaim.settleTxHash);
 await checkTx("create false claim", evidence.claims.falseClaim.createTxHash);
-await checkTx("settle false claim", evidence.claims.falseClaim.settleTxHash);
+await checkTxFinalized("settle false claim (agreed fail-closed)", evidence.claims.falseClaim.settleTxHash);
+await checkTx("create refuted-404 claim", evidence.claims.refutedClaim404.createTxHash);
+await checkTx("settle refuted-404 claim", evidence.claims.refutedClaim404.settleTxHash);
 
 async function readJson(fnName, args) {
   const raw = await readRetry(
@@ -79,10 +97,17 @@ check(
 );
 const falseRecord = await readJson("get_claim", [evidence.claims.falseClaim.id]);
 check(
-  "false claim readback",
-  falseRecord.status === "refuted" &&
+  "false claim readback (pending by design, GitHub 500 fail-closed)",
+  falseRecord.status === "pending" &&
     JSON.stringify(falseRecord) === JSON.stringify(evidence.claims.falseClaim.claim),
   falseRecord.status,
+);
+const refutedRecord = await readJson("get_claim", [evidence.claims.refutedClaim404.id]);
+check(
+  "refuted-404 claim readback",
+  refutedRecord.status === "refuted" &&
+    JSON.stringify(refutedRecord) === JSON.stringify(evidence.claims.refutedClaim404.claim),
+  refutedRecord.status,
 );
 const torvalds = await readJson("get_profile", ["torvalds"]);
 check(
@@ -96,7 +121,7 @@ check(
 const xyz = await readJson("get_profile", ["definitely-not-a-contributor-xyz"]);
 check("xyz profile count 0", xyz.count === 0, JSON.stringify(xyz));
 const count = await readJson("get_claim_count", []);
-check("claim count 2", Number(count) === 2, String(count));
+check("claim count 3", Number(count) === 3, String(count));
 
 if (failures > 0) {
   console.log(`${failures} check(s) failed`);

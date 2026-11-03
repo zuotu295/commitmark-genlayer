@@ -1,5 +1,5 @@
 {
-  "status": "partial",
+  "status": "complete",
   "network": "Stable Studionet",
   "chainId": 61999,
   "rpcUrl": "https://studio.genlayer.com/api",
@@ -10,7 +10,7 @@
   "deployTxHash": "0x98367ba21d128cd806455c77dcb7bae73582687b87d5b918db862a6a843cf245",
   "deployReceipt": "FINALIZED/SUCCESS",
   "flowAccount": "0x9AC2cF486a573e53F54aF322D410Ba6430C70bb9",
-  "claimCount": 2,
+  "claimCount": 3,
   "claims": {
     "trueClaim": {
       "id": 0,
@@ -55,6 +55,22 @@
         "status": "pending",
         "source_url": "https://api.github.com/repos/torvalds/linux/commits?author=definitely-not-a-contributor-xyz&per_page=1"
       }
+    },
+    "refutedClaim404": {
+      "id": 2,
+      "createTxHash": "0x47e563318364c8bec9b875510f314f3eac83ee928ef804aa116dd2d556edf4ff",
+      "createReceipt": "FINALIZED/SUCCESS",
+      "settleTxHash": "0x9b25f8b04edd184c5123ab38b0b765abe23297ba548a5d69e666945fc89b009d",
+      "settleReceipt": "FINALIZED/SUCCESS",
+      "claim": {
+        "id": 2,
+        "github_username": "torvalds",
+        "repo_full_name": "torvalds/this-repo-does-not-exist-xyz",
+        "note": "demo refuted via 404",
+        "claimer": "0x4A54474836c18E45a197aF10A91bb5341aBf72Be",
+        "status": "refuted",
+        "source_url": "https://api.github.com/repos/torvalds/this-repo-does-not-exist-xyz/commits?author=torvalds&per_page=1"
+      }
     }
   },
   "profiles": {
@@ -77,7 +93,11 @@
       "repos": []
     }
   },
-  "scope": "Demo loop, PARTIAL: the verified half completed on-chain; the refuted half did not settle (see diagnosis). All writes used ephemeral in-memory script accounts on gasless Studionet; no adoption claim is made and no real user data is involved. Claims attest public contribution facts only and do not prove account ownership.",
-  "diagnosis": "The refuted demo case (username with no commits in torvalds/linux) cannot settle right now because GitHub's commits API returns HTTP 500 for author queries with no matching commits, instead of HTTP 200 with an empty array. The contract maps any non-200/non-404 status to a fail-closed UserError, and validators agreed on that error twice (3/5 agree each time), so both verify transactions finalized as ERROR with no state change and the claim correctly stayed pending. This is the contract behaving as designed, not a contract defect: the refuted outcome for empty arrays and for 404s is covered by the mocked test suite. A refuted on-chain demo remains achievable via the 404 path (a nonexistent repository) if the demo inputs are amended.",
-  "checkedAt": "2026-11-03T12:26:00.245Z"
+  "scope": "Demo loop, COMPLETE: the verified half (torvalds / torvalds/linux) and the refuted half (torvalds / nonexistent repo, 404 path) both settled on-chain with FINALIZED/SUCCESS transactions and matching readbacks. The author-filter case (claim 1, username with no commits) remains pending by design: GitHub returns HTTP 500 for no-match author queries, which the contract correctly fail-closes on (see diagnosis). All writes used ephemeral in-memory script accounts on gasless Studionet; no adoption claim is made and no real user data is involved. Claims attest public contribution facts only and do not prove account ownership.",
+  "diagnosis": "The refuted demo case (username with no commits in torvalds/linux) cannot settle right now because GitHub's commits API returns HTTP 500 for author queries with no matching commits, instead of HTTP 200 with an empty array. The contract maps any non-200/non-404 status to a fail-closed UserError, and validators agreed on that error twice (3/5 agree each time), so both verify transactions finalized as ERROR with no state change and the claim correctly stayed pending. This is the contract behaving as designed, not a contract defect: the refuted outcome for empty arrays and for 404s is covered by the mocked test suite. A refuted on-chain demo remains achievable via the 404 path (a nonexistent repository) if the demo inputs are amended. Completion 2026-11-03: the refuted half was completed via the 404 path (claim 2, torvalds/this-repo-does-not-exist-xyz, FINALIZED/SUCCESS create + verify, readback refuted, torvalds profile unchanged at count 1). GitHub's 500-for-no-match-author behavior was independently re-verified by curl (author=xyz -> 500, author=octocat -> 500, author=torvalds -> 200, nonexistent repo -> 404). The 404 refuted outcome is now proven on-chain; the empty-array refuted outcome remains mocked-only.",
+  "checkedAt": "2026-11-03T12:36:27.661260Z",
+  "completionLoop": {
+    "script": "scripts/flow-refuted-404.mjs",
+    "flowAccount": "0x4A54474836c18E45a197aF10A91bb5341aBf72Be"
+  }
 }
