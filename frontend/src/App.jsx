@@ -102,14 +102,6 @@ export default function App() {
   const [verifyError, setVerifyError] = useState('')
   const [verifyNotice, setVerifyNotice] = useState('')
 
-  const glowRef = useRef(null)
-  const finePointer = useMemo(
-    () =>
-      typeof window !== 'undefined' &&
-      window.matchMedia &&
-      window.matchMedia('(pointer: fine)').matches,
-    [],
-  )
   const reducedMotion = useMemo(
     () =>
       typeof window !== 'undefined' &&
@@ -151,38 +143,43 @@ export default function App() {
     }
   }, [reducedMotion])
 
-  // Scroll reveal for everything marked .reveal, including content
-  // that arrives later from chain reads.
+  // Scroll reveal, persistent observer edition.
+  // The observer is created once and NEVER disconnected on re-render.
+  // The previous version recreated it after every render, disconnected
+  // it in cleanup, and skipped elements it had already seen, so the
+  // splash timer and the async claims load orphaned the observer and
+  // nothing ever became .revealed (black screen). This version
+  // re-runs after every render but only calls observe() on .reveal
+  // elements that are not yet .revealed (re-observing an already
+  // seen element is a no-op), so late-arriving sections (the profile
+  // after a search, claims from the chain) are always picked up.
+  // Disconnect happens only on unmount, in the effect below.
+  const revealObserver = useRef(null)
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            entry.target.classList.add('revealed')
-            observer.unobserve(entry.target)
-          }
-        })
-      },
-      { threshold: 0.12 },
-    )
-    document.querySelectorAll('.reveal:not(.observed)').forEach((el) => {
-      el.classList.add('observed')
+    if (!revealObserver.current) {
+      revealObserver.current = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('revealed')
+              revealObserver.current.unobserve(entry.target)
+            }
+          })
+        },
+        { threshold: 0.12 },
+      )
+    }
+    const observer = revealObserver.current
+    document.querySelectorAll('.reveal:not(.revealed)').forEach((el) => {
       observer.observe(el)
     })
-    return () => observer.disconnect()
   })
-
-  // Cursor glow on fine pointers only.
-  useEffect(() => {
-    if (!finePointer) return undefined
-    const move = (event) => {
-      if (glowRef.current) {
-        glowRef.current.style.background = `radial-gradient(340px circle at ${event.clientX}px ${event.clientY}px, rgba(255,197,61,0.09), transparent 70%)`
-      }
-    }
-    window.addEventListener('mousemove', move)
-    return () => window.removeEventListener('mousemove', move)
-  }, [finePointer])
+  useEffect(
+    () => () => {
+      if (revealObserver.current) revealObserver.current.disconnect()
+    },
+    [],
+  )
 
   const refreshStream = async () => {
     if (!CONTRACT_ADDRESS) return
@@ -202,19 +199,6 @@ export default function App() {
     refreshStream()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  const handleTilt = (event) => {
-    if (!finePointer || reducedMotion) return
-    const el = event.currentTarget
-    const rect = el.getBoundingClientRect()
-    const x = (event.clientX - rect.left) / rect.width - 0.5
-    const y = (event.clientY - rect.top) / rect.height - 0.5
-    el.style.transform = `perspective(700px) rotateY(${x * 4}deg) rotateX(${y * -4}deg)`
-  }
-
-  const resetTilt = (event) => {
-    event.currentTarget.style.transform = ''
-  }
 
   const doSearch = async (event) => {
     event.preventDefault()
@@ -331,21 +315,8 @@ export default function App() {
     setSoundOn(!sound)
   }
 
-  // Constellation nodes from real chain claims (newest first, capped).
-  const nodes = useMemo(() => {
-    const items = claims.slice(0, 14)
-    return items.map((c, i) => {
-      const angle = i * 2.39996
-      const radius = 34 + ((i * 23) % 62)
-      const cx = 180 + radius * Math.cos(angle) * 2.1
-      const cy = 118 + radius * Math.sin(angle) * 0.85
-      return { claim: c, cx, cy }
-    })
-  }, [claims])
-
   return (
     <div className="page">
-      <div ref={glowRef} className="cursor-glow" aria-hidden="true" />
       {!splashGone && (
         <div
           className={`splash ${splash ? '' : 'done'}`}
@@ -359,12 +330,21 @@ export default function App() {
         </div>
       )}
 
-      <header className="topbar">
-        <div className="brand">
-          <img src="./logo.svg" alt="" className="brand-mark" />
-          <span className="brand-name">CommitMark</span>
+      <header className="masthead">
+        <div className="masthead-name">CommitMark</div>
+        <div className="masthead-meta">
+          <span>{t.eyebrow}</span>
+          <span>
+            {new Date().toLocaleDateString(lang === 'zh' ? 'zh-CN' : 'en-GB', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            })}
+          </span>
         </div>
-        <div className="top-actions">
+      </header>
+      <nav className="navbar">
+        <div className="nav-actions">
           <div className="lang-switch" role="group" aria-label="Language">
             <button
               className={lang === 'en' ? 'active' : ''}
@@ -397,12 +377,12 @@ export default function App() {
             </button>
           )}
         </div>
-      </header>
+      </nav>
       {walletError && <div className="banner error">{walletError}</div>}
       {!CONTRACT_ADDRESS && <div className="banner warn">{t.notConfigured}</div>}
 
       <main>
-        <section className="hero reveal">
+        <section className="hero">
           <p className="eyebrow">{t.eyebrow}</p>
           <h1>{t.heroTitle}</h1>
           <p className="hero-sub">{t.heroSub}</p>
@@ -424,29 +404,25 @@ export default function App() {
             <p className="hint">{t.searchHint}</p>
           </form>
 
-          <div className="constellation" aria-hidden="true">
-            <svg viewBox="0 0 360 220" preserveAspectRatio="xMidYMid meet">
-              {nodes.map(({ claim, cx, cy }) => (
-                <g key={claim.id}>
-                  <line x1="180" y1="118" x2={cx} y2={cy} className="link" />
-                  <circle
-                    cx={cx}
-                    cy={cy}
-                    r="10"
-                    className={`halo ${claim.status}`}
-                  />
-                  <circle cx={cx} cy={cy} r="5" className={`node ${claim.status}`} />
-                </g>
-              ))}
-              <circle cx="180" cy="118" r="9" className="core" />
-              {nodes.map(({ claim, cx, cy }) => (
-                <text key={`t-${claim.id}`} x={cx} y={cy - 14} className="node-label">
-                  {claim.github_username.length > 12
-                    ? `${claim.github_username.slice(0, 12)}…`
-                    : claim.github_username}
-                </text>
-              ))}
-            </svg>
+          <div className="index-strip">
+            <p className="index-heading">{t.streamTitle}</p>
+            {streamLoading ? (
+              <p className="muted">{t.loading}</p>
+            ) : claims.length === 0 ? (
+              <p className="muted">{t.noClaims}</p>
+            ) : (
+              <ol className="index-list">
+                {claims.slice(0, 6).map((c) => (
+                  <li key={c.id} className="index-row">
+                    <span className="mono index-user">{c.github_username}</span>
+                    <span className="mono index-repo">{c.repo_full_name}</span>
+                    <span className={statusClass(c.status)}>
+                      {statusLabel(c.status, t)}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
           </div>
         </section>
 
@@ -508,11 +484,7 @@ export default function App() {
           </section>
         )}
 
-        <section
-          className="claim-panel reveal tilt"
-          onMouseMove={handleTilt}
-          onMouseLeave={resetTilt}
-        >
+        <section className="claim-panel reveal">
           <h2>{t.claimTitle}</h2>
           <p className="muted">{t.claimSub}</p>
           <form onSubmit={doClaim} className="claim-form">
